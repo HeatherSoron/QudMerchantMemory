@@ -17,15 +17,38 @@ namespace XRL.World.Parts.Skill
 
         private class MerchantInventory {
             public string Name;
-            public List<string> Items;
+            public List<ItemMemory> Items = new List<ItemMemory>();
             public string Location;
             public int X;
             public int Y;
             public int Z;
+
+            public class ItemMemory {
+                public string DisplayName;
+                public string SearchName;
+                public int Weight;
+                public double Value;
+                public double ValueMultiplier;
+
+                public string FormatWeight() {
+				    return "{{K|" + Weight + "#}}";
+                }
+            }
+
+            public void AddItem(GameObject item) {
+                Items.Add(new ItemMemory{
+                    DisplayName = item.DisplayName,
+                    SearchName = item.DisplayNameStripped,
+                    Weight = item.WeightEach,
+                    Value = TradeUI.ItemValueEach(item, true),
+                    // I should probably have calculated this on its own, since TradeUI is kind of a weird pseudo-static class. but, it seems to work, for now?
+                    ValueMultiplier = TradeUI.GetMultiplier(item)
+                });
+            }
             
             public void DebugMessage() {
-                foreach (string item in Items) {
-                    XRL.Messages.MessageQueue.AddPlayerMessage("saw: " + item);
+                foreach (ItemMemory item in Items) {
+                    XRL.Messages.MessageQueue.AddPlayerMessage("saw: " + item.DisplayName);
                 }
                 XRL.Messages.MessageQueue.AddPlayerMessage(
                     String.Format("from {0}, in zone {1} ({2}, {3})",
@@ -37,10 +60,10 @@ namespace XRL.World.Parts.Skill
             public string Summary(string search = "") {
                 int count = 0;
                 string message = String.Format("{0} ({1} {2}, {3})", Name, Direction(), Location, Stratum());
-                foreach (string item in Items) {
-                    if (search == "" || item.Contains(search)) {
+                foreach (ItemMemory item in Items) {
+                    if (search == "" || item.SearchName.Contains(search)) {
                         count += 1;
-                        message += "\n" + " - " + item;
+                        message += String.Format("\n - {0} (${1} {2})", item.DisplayName, TradeUI.FormatPrice(item.Value, (float)(1/item.ValueMultiplier)), item.FormatWeight());
                     }
                 }
                 if (count == 0) {
@@ -108,7 +131,6 @@ namespace XRL.World.Parts.Skill
             GameObject Trader = E.Trader;
             MerchantInventory merch = new MerchantInventory{
                 Name = Trader.DisplayName,
-                Items = new List<string>(),
                 Location = Trader.CurrentZone.DisplayName,
                 X = Trader.CurrentZone.X,
                 Y = Trader.CurrentZone.Y,
@@ -118,20 +140,8 @@ namespace XRL.World.Parts.Skill
             AllMerchants[Trader.id] = merch;
             foreach (GameObject @object in Trader.Inventory.GetObjects())
             {
-                    merch.Items.Add(@object.DisplayName);
-                    //XRL.Messages.MessageQueue.AddPlayerMessage("trade object: " + @object.DisplayName);
+                    merch.AddItem(@object);
             }
-            //merch.DebugMessage();
-            /*
-            XRL.Messages.MessageQueue.AddPlayerMessage(
-                String.Format("from {0}, in zone {1} ({2}/{5}, {3}/{6}, {4})",
-                    Trader.DisplayName, Trader.CurrentZone.DisplayName,
-                    Trader.CurrentZone.X, Trader.CurrentZone.Y, Trader.CurrentZone.Z, Trader.CurrentZone.wX, Trader.CurrentZone.wY
-                )
-            );
-            XRL.Messages.MessageQueue.AddPlayerMessage(Trader.DisplayName);
-            XRL.Messages.MessageQueue.AddPlayerMessage(Trader.CurrentZone.DisplayName);
-            */
             return base.HandleEvent(E);
         }
 
@@ -173,9 +183,9 @@ namespace XRL.World.Parts.Skill
                     if (LastMerchant != null) {
                         //LastMerchant.DebugMessage();
                         //Popup.Show(LastMerchant.Summary());
-                        string message = "";
+                        string message = "known merchants:\n";
                         foreach (MerchantInventory merch in AllMerchants.Values) {
-                            message += merch.Summary() + "\n";
+                            message += "\n" + merch.Summary();
                         }
                         Popup.Show(message);
                     } else {
@@ -190,11 +200,11 @@ namespace XRL.World.Parts.Skill
                     if (LastMerchant != null) {
                         string search = Popup.AskString("Search for what item?");
 
-                        string message = "";
+                        string message = "merchants who are selling '" + search + "'";
                         foreach (MerchantInventory merch in AllMerchants.Values) {
                             string results = merch.Summary(search);
                             if (results != "") {
-                                message += results + "\n";
+                                message += "\n" + results;
                             }
                         }
                         Popup.Show(message);
