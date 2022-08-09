@@ -52,7 +52,7 @@ namespace XRL.World.Parts
                 }
                 Items.Add(new ItemMemory{
                     DisplayName = item.DisplayName,
-                    SearchName = item.DisplayNameStripped.ToLowerCase(),
+                    SearchName = item.DisplayNameStripped.ToLower(),
                     Weight = item.WeightEach,
                     Value = TradeUI.ItemValueEach(item, true),
                     IsCurrency = item.IsCurrency,
@@ -72,7 +72,7 @@ namespace XRL.World.Parts
 
             public string Summary(string search = "") {
                 int count = 0;
-                search = search.ToLowerCase();
+                search = search.ToLower();
                 string message = String.Format("{0} ({1} {2}, {3}, {4})", Name, Direction(), Location, Stratum(), FormatTime());
                 foreach (ItemMemory item in Items) {
                     if (search == "" || item.SearchName.Contains(search)) {
