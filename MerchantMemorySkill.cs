@@ -1,17 +1,23 @@
 using System;
+using SerializeField = UnityEngine.SerializeField;
 using System.Collections.Generic;
 using System.Linq;
 using XRL.UI;
+using Newtonsoft.Json;
 
 
-namespace XRL.World.Parts.Skill
+namespace XRL.World.Parts
 {
-	class soron_MerchantMemorySkill : BaseSkill
+    [Serializable]
+	class soron_MerchantMemoryPart : IPart
 	{
 		[NonSerialized]
         private MerchantInventory LastMerchant;
 
-		[NonSerialized]
+        [SerializeField]
+        private bool _SeenAny = false;
+
+        // serialized with custom method
         private Dictionary<string, MerchantInventory> AllMerchants = new Dictionary<string, MerchantInventory>();
 
 
@@ -22,13 +28,15 @@ namespace XRL.World.Parts.Skill
             public int X;
             public int Y;
             public int Z;
+            public double StandardMultiplier;
+            public long LastBrowsedAt; 
 
             public class ItemMemory {
                 public string DisplayName;
                 public string SearchName;
                 public int Weight;
                 public double Value;
-                public double ValueMultiplier;
+                public bool IsCurrency;
 
                 public string FormatWeight() {
 				    return "{{K|" + Weight + "#}}";
@@ -36,13 +44,16 @@ namespace XRL.World.Parts.Skill
             }
 
             public void AddItem(GameObject item) {
+                double mult = 1;
+                if (!item.IsCurrency) {
+                    mult = 1/StandardMultiplier;
+                }
                 Items.Add(new ItemMemory{
                     DisplayName = item.DisplayName,
                     SearchName = item.DisplayNameStripped,
                     Weight = item.WeightEach,
                     Value = TradeUI.ItemValueEach(item, true),
-                    // I should probably have calculated this on its own, since TradeUI is kind of a weird pseudo-static class. but, it seems to work, for now?
-                    ValueMultiplier = TradeUI.GetMultiplier(item)
+                    IsCurrency = item.IsCurrency,
                 });
             }
             
@@ -59,17 +70,33 @@ namespace XRL.World.Parts.Skill
 
             public string Summary(string search = "") {
                 int count = 0;
-                string message = String.Format("{0} ({1} {2}, {3})", Name, Direction(), Location, Stratum());
+                string message = String.Format("{0} ({1} {2}, {3}, {4})", Name, Direction(), Location, Stratum(), FormatTime());
                 foreach (ItemMemory item in Items) {
                     if (search == "" || item.SearchName.Contains(search)) {
                         count += 1;
-                        message += String.Format("\n - {0} (${1} {2})", item.DisplayName, TradeUI.FormatPrice(item.Value, (float)(1/item.ValueMultiplier)), item.FormatWeight());
+                        double mult = 1;
+                        if (!item.IsCurrency) {
+                            mult = 1/StandardMultiplier;
+                        }
+                        message += String.Format("\n - {0} (${1} {2})", item.DisplayName, TradeUI.FormatPrice(item.Value, (float)mult), item.FormatWeight());
                     }
                 }
                 if (count == 0) {
                     return "";
                 }
                 return message;
+            }
+
+            public string FormatTime() {
+                long delta = Calendar.TotalTimeTicks - LastBrowsedAt;
+                long days = (long)(delta / Calendar.turnsPerDay);
+
+                if (days > 1) {
+                    return $"{days} days ago";
+                } else {
+                    int hours = (int)(delta / Calendar.turnsPerHour);
+                    return $"{hours} hours ago";
+                }
             }
 
             public string Direction() {
@@ -117,6 +144,26 @@ namespace XRL.World.Parts.Skill
             }
         }
 
+        public override void SaveData(SerializationWriter Writer) {
+            string version = "version_0.2.0";
+            Writer.Write(version);
+
+            Writer.Write(JsonConvert.SerializeObject(AllMerchants, Formatting.Indented));
+
+            base.SaveData(Writer);
+        }
+        public override void LoadData(SerializationReader Reader) {
+            string version = Reader.ReadString();
+            if (version == "version_0.2.0") {
+                string json = Reader.ReadString();
+
+                AllMerchants = JsonConvert.DeserializeObject<Dictionary<string, MerchantInventory>>(json);
+                _SeenAny = (AllMerchants.Count > 0);
+            }
+
+            base.LoadData(Reader);
+        }
+
         public override bool WantEvent(int ID, int cascade)
         {
             if (!base.WantEvent(ID, cascade))
@@ -135,8 +182,11 @@ namespace XRL.World.Parts.Skill
                 X = Trader.CurrentZone.X,
                 Y = Trader.CurrentZone.Y,
                 Z = Trader.CurrentZone.Z,
+                StandardMultiplier = EventShim_GetFor(E, E.Actor, Trader),
+                LastBrowsedAt = Calendar.TotalTimeTicks,
             };
             LastMerchant = merch;
+            _SeenAny = true;
             AllMerchants[Trader.id] = merch;
             foreach (GameObject @object in Trader.Inventory.GetObjects())
             {
@@ -145,21 +195,38 @@ namespace XRL.World.Parts.Skill
             return base.HandleEvent(E);
         }
 
+        // HACKY IMPLEMENTATION - minimal copy of core game code needed to get accurate numbers *without* crashing the client
+        private double EventShim_GetFor(GetTradePerformanceEvent E, GameObject Actor, GameObject Trader) {
+            if (Trader == null || Actor == null)
+            {
+                return 1.0;
+            }
+            if (!Actor.HasStat("Ego"))
+            {
+                return 0.25;
+            }
+            int num = Actor.StatMod("Ego");
+            double num2 = 0.0;
+            double num3 = 1.0;
+
+            // hacky stuff here
+            num2 = E.LinearAdjustment;
+            num3 = E.FactorAdjustment;
+
+            return Math.Min(Math.Max((0.35 + 0.07 * ((double)num + num2)) * num3, 0.05), 0.95);
+        }
+
 		public Guid RememberAbilityID = Guid.Empty;
         public Guid SearchMerchantsID = Guid.Empty;
 
-		public override bool AddSkill(GameObject GO)
+		public void InitAbilities()
 		{
-			RememberAbilityID = AddMyActivatedAbility("Remember Merchants", "CommandRememberMerchants", "Skill", "You bring to mind the merchants and traders that you've seen in your travels.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false);
-			SearchMerchantsID = AddMyActivatedAbility("Remember Items", "CommandSearchMerchants", "Skill", "You bring to mind specific items, sold by the merchants that you've seen in your travels.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false);
-			return base.AddSkill(GO);
-		}
-
-		public override bool RemoveSkill(GameObject GO)
-		{
-			RemoveMyActivatedAbility(ref RememberAbilityID);
-			RemoveMyActivatedAbility(ref SearchMerchantsID);
-			return base.RemoveSkill(GO);
+            if (RememberAbilityID == Guid.Empty) {
+                RememberAbilityID = AddMyActivatedAbility("Remember Merchants", "CommandRememberMerchants", "Memories", "You bring to mind the merchants and traders that you've seen in your travels.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false);
+            }
+            if (SearchMerchantsID == Guid.Empty) {
+                SearchMerchantsID = AddMyActivatedAbility("Remember Items", "CommandSearchMerchants", "Memories", "You bring to mind specific items, sold by the merchants that you've seen in your travels.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false);
+            }
 		}
 
 		public override bool AllowStaticRegistration()
@@ -180,7 +247,7 @@ namespace XRL.World.Parts.Skill
 			{
 				if (ParentObject.IsPlayer())
 				{
-                    if (LastMerchant != null) {
+                    if (_SeenAny) {
                         //LastMerchant.DebugMessage();
                         //Popup.Show(LastMerchant.Summary());
                         string message = "known merchants:\n";
@@ -197,7 +264,7 @@ namespace XRL.World.Parts.Skill
             if (E.ID == "CommandSearchMerchants")
             {
 				if (ParentObject.IsPlayer()) {
-                    if (LastMerchant != null) {
+                    if (_SeenAny) {
                         string search = Popup.AskString("Search for what item?");
 
                         string message = "merchants who are selling '" + search + "'";
