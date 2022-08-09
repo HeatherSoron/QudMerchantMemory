@@ -14,7 +14,7 @@ public class MerchantMemory_LoadGameHandler
         GameObject player = XRLCore.Core?.Game?.Player?.Body;
         if (player != null)
         {
-            player.RequirePart<soron_MerchantMemoryPart>().InitAbilities();
+            player.RequirePart<Soron_MerchantMemoryPart>().InitAbilities();
         }
     }
 }

@@ -9,7 +9,7 @@ using Newtonsoft.Json;
 namespace XRL.World.Parts
 {
     [Serializable]
-	class soron_MerchantMemoryPart : IPart
+	class Soron_MerchantMemoryPart : IPart
 	{
 		[NonSerialized]
         private MerchantInventory LastMerchant;
