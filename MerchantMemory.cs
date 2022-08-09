@@ -50,7 +50,7 @@ namespace XRL.World.Parts
                 }
                 Items.Add(new ItemMemory{
                     DisplayName = item.DisplayName,
-                    SearchName = item.DisplayNameStripped,
+                    SearchName = item.DisplayNameStripped.ToLowerCase(),
                     Weight = item.WeightEach,
                     Value = TradeUI.ItemValueEach(item, true),
                     IsCurrency = item.IsCurrency,
@@ -70,6 +70,7 @@ namespace XRL.World.Parts
 
             public string Summary(string search = "") {
                 int count = 0;
+                search = search.ToLowerCase();
                 string message = String.Format("{0} ({1} {2}, {3}, {4})", Name, Direction(), Location, Stratum(), FormatTime());
                 foreach (ItemMemory item in Items) {
                     if (search == "" || item.SearchName.Contains(search)) {
@@ -145,7 +146,7 @@ namespace XRL.World.Parts
         }
 
         public override void SaveData(SerializationWriter Writer) {
-            string version = "version_0.2.0";
+            string version = "version_0.4.0";
             Writer.Write(version);
 
             Writer.Write(JsonConvert.SerializeObject(AllMerchants, Formatting.Indented));
@@ -154,7 +155,7 @@ namespace XRL.World.Parts
         }
         public override void LoadData(SerializationReader Reader) {
             string version = Reader.ReadString();
-            if (version == "version_0.2.0") {
+            if (version == "version_0.4.0") {
                 string json = Reader.ReadString();
 
                 AllMerchants = JsonConvert.DeserializeObject<Dictionary<string, MerchantInventory>>(json);
