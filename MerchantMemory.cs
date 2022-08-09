@@ -28,6 +28,8 @@ namespace XRL.World.Parts
             public int X;
             public int Y;
             public int Z;
+            public int wX;
+            public int wY;
             public double StandardMultiplier;
             public long LastBrowsedAt; 
 
@@ -146,7 +148,7 @@ namespace XRL.World.Parts
         }
 
         public override void SaveData(SerializationWriter Writer) {
-            string version = "version_0.4.0";
+            string version = "version_0.4.1";
             Writer.Write(version);
 
             Writer.Write(JsonConvert.SerializeObject(AllMerchants, Formatting.Indented));
@@ -155,7 +157,7 @@ namespace XRL.World.Parts
         }
         public override void LoadData(SerializationReader Reader) {
             string version = Reader.ReadString();
-            if (version == "version_0.4.0") {
+            if (version == "version_0.4.1") {
                 string json = Reader.ReadString();
 
                 AllMerchants = JsonConvert.DeserializeObject<Dictionary<string, MerchantInventory>>(json);
@@ -183,6 +185,8 @@ namespace XRL.World.Parts
                 X = Trader.CurrentZone.X,
                 Y = Trader.CurrentZone.Y,
                 Z = Trader.CurrentZone.Z,
+                wX = Trader.CurrentZone.wX,
+                wY = Trader.CurrentZone.wY,
                 StandardMultiplier = EventShim_GetFor(E, E.Actor, Trader),
                 LastBrowsedAt = Calendar.TotalTimeTicks,
             };
