@@ -195,7 +195,10 @@ namespace XRL.World.Parts
             AllMerchants[Trader.id] = merch;
             foreach (GameObject @object in Trader.Inventory.GetObjects())
             {
+                // this *should* get the correct set of items (aside from some possible edge cases?)
+                if (TradeUI.ValidForTrade(@object, Trader, E.Actor)) {
                     merch.AddItem(@object);
+                }
             }
             return base.HandleEvent(E);
         }
