@@ -148,23 +148,23 @@ namespace XRL.World.Parts
         }
 
         public override void SaveData(SerializationWriter Writer) {
-            string version = "version_0.4.1";
+            base.SaveData(Writer);
+
+            string version = "version_0.5.0";
             Writer.Write(version);
 
             Writer.Write(JsonConvert.SerializeObject(AllMerchants, Formatting.Indented));
-
-            base.SaveData(Writer);
         }
         public override void LoadData(SerializationReader Reader) {
+            base.LoadData(Reader);
+
             string version = Reader.ReadString();
-            if (version == "version_0.4.1") {
+            if (version == "version_0.5.0") {
                 string json = Reader.ReadString();
 
                 AllMerchants = JsonConvert.DeserializeObject<Dictionary<string, MerchantInventory>>(json);
                 _SeenAny = (AllMerchants.Count > 0);
             }
-
-            base.LoadData(Reader);
         }
 
         public override bool WantEvent(int ID, int cascade)
