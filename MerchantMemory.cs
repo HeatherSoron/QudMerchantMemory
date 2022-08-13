@@ -192,7 +192,7 @@ namespace XRL.World.Parts
         public override void SaveData(SerializationWriter Writer) {
             base.SaveData(Writer);
 
-            string version = "version_0.6.0";
+            string version = "version_0.7.0";
             Writer.Write(version);
 
             Writer.Write(JsonConvert.SerializeObject(AllMerchants, Formatting.Indented));
@@ -203,7 +203,7 @@ namespace XRL.World.Parts
             base.LoadData(Reader);
 
             string version = Reader.ReadString();
-            if (version == "version_0.6.0") {
+            if (version == "version_0.7.0") {
                 string json = Reader.ReadString();
 
                 AllMerchants = JsonConvert.DeserializeObject<Dictionary<string, MerchantInventory>>(json);
@@ -275,7 +275,6 @@ namespace XRL.World.Parts
             return Math.Min(Math.Max((0.35 + 0.07 * ((double)num + num2)) * num3, 0.05), 0.95);
         }
 
-		public Guid RememberAbilityID = Guid.Empty;
         public Guid SearchMerchantsID = Guid.Empty;
         public Guid DoConfigID = Guid.Empty;
 
@@ -296,7 +295,6 @@ namespace XRL.World.Parts
 
 		public override void Register(GameObject Object)
 		{
-			Object.RegisterPartEvent(this, "MerchantMemoryCommand_RememberMerchants");
 			Object.RegisterPartEvent(this, "MerchantMemoryCommand_SearchMerchants");
             Object.RegisterPartEvent(this, "MerchantMemoryCommand_ConfigureItemSearch");
 			base.Register(Object);
@@ -304,26 +302,6 @@ namespace XRL.World.Parts
 
 		public override bool FireEvent(Event E)
 		{
-			if (E.ID == "MerchantMemoryCommand_RememberMerchants")
-			{
-				if (ParentObject.IsPlayer())
-				{
-                    if (_SeenAny) {
-                        //LastMerchant.DebugMessage();
-                        //Popup.Show(LastMerchant.Summary());
-                        string message = "known merchants:\n";
-                        foreach (MerchantInventory merch in AllMerchants.Values) {
-                            message += "\n" + merch.Summary(options);
-                        }
-                        //Popup.Show(message);
-
-                        ShowConfigScreen();
-                    } else {
-                        Popup.Show("You don't remember any merchants or their wares.");
-                    }
-				}
-                return false;
-			}
             if (E.ID == "MerchantMemoryCommand_ConfigureItemSearch")
             {
                 ShowConfigScreen();
