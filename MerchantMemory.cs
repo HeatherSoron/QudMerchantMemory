@@ -282,10 +282,10 @@ namespace XRL.World.Parts
 		public void InitAbilities()
 		{
             if (SearchMerchantsID == Guid.Empty) {
-                SearchMerchantsID = AddMyActivatedAbility("Remember Items", "CommandSearchMerchants", "Memories", "You bring to mind specific items, sold by the merchants that you've seen in your travels.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false);
+                SearchMerchantsID = AddMyActivatedAbility("Remember Items", "MerchantMemoryCommand_SearchMerchants", "Memories", "You bring to mind specific items, sold by the merchants that you've seen in your travels.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false);
             }
             if (DoConfigID == Guid.Empty) {
-                DoConfigID = AddMyActivatedAbility("Configure Item Search", "CommandConfigureItemSearch", "Memories", "Adjust how item search works, including item filters.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false); 
+                DoConfigID = AddMyActivatedAbility("Configure Item Search", "MerchantMemoryCommand_ConfigureItemSearch", "Memories", "Adjust how item search works, including item filters.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false); 
             }
 		}
 
@@ -296,15 +296,15 @@ namespace XRL.World.Parts
 
 		public override void Register(GameObject Object)
 		{
-			Object.RegisterPartEvent(this, "CommandRememberMerchants");
-			Object.RegisterPartEvent(this, "CommandSearchMerchants");
-            Object.RegisterPartEvent(this, "CommandConfigureItemSearch");
+			Object.RegisterPartEvent(this, "MerchantMemoryCommand_RememberMerchants");
+			Object.RegisterPartEvent(this, "MerchantMemoryCommand_SearchMerchants");
+            Object.RegisterPartEvent(this, "MerchantMemoryCommand_ConfigureItemSearch");
 			base.Register(Object);
 		}
 
 		public override bool FireEvent(Event E)
 		{
-			if (E.ID == "CommandRememberMerchants")
+			if (E.ID == "MerchantMemoryCommand_RememberMerchants")
 			{
 				if (ParentObject.IsPlayer())
 				{
@@ -324,12 +324,12 @@ namespace XRL.World.Parts
 				}
                 return false;
 			}
-            if (E.ID == "CommandConfigureItemSearch")
+            if (E.ID == "MerchantMemoryCommand_ConfigureItemSearch")
             {
                 ShowConfigScreen();
                 return false;
             }
-            if (E.ID == "CommandSearchMerchants")
+            if (E.ID == "MerchantMemoryCommand_SearchMerchants")
             {
                 RunItemSearch();
             }
