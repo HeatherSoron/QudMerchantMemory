@@ -6,6 +6,9 @@ using XRL.UI;
 using Newtonsoft.Json;
 
 
+using ConsoleLib.Console;
+
+
 namespace XRL.World.Parts
 {
     [Serializable]
@@ -20,6 +23,43 @@ namespace XRL.World.Parts
         // serialized with custom method
         private Dictionary<string, MerchantInventory> AllMerchants = new Dictionary<string, MerchantInventory>();
 
+        private class Options {
+            public int MinSpend = 0;
+            public int MaxSpend = -1;
+            public bool OnlyRestocking = false;
+
+            public string FormatMaxSpend() {
+                if (MaxSpend < 0) {
+                    return "none";
+                }
+                return $"<= {MaxSpend}";
+            }
+
+            public bool Match(ItemMemory item, MerchantInventory merch) {
+                if (MinSpend > item.Value / merch.StandardMultiplier) {
+                    return false;
+                }
+                if (MaxSpend >= 0 && MaxSpend < item.Value / merch.StandardMultiplier) {
+                    return false;
+                }
+                if (OnlyRestocking && !merch.MightRestock) {
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        public class ItemMemory {
+            public string DisplayName;
+            public string SearchName;
+            public int Weight;
+            public double Value;
+            public bool IsCurrency;
+
+            public string FormatWeight() {
+                return "{{K|" + Weight + "#}}";
+            }
+        }
 
         private class MerchantInventory {
             public string Name;
@@ -34,17 +74,6 @@ namespace XRL.World.Parts
             public long LastBrowsedAt; 
             public bool MightRestock = false;
 
-            public class ItemMemory {
-                public string DisplayName;
-                public string SearchName;
-                public int Weight;
-                public double Value;
-                public bool IsCurrency;
-
-                public string FormatWeight() {
-				    return "{{K|" + Weight + "#}}";
-                }
-            }
 
             public void AddItem(GameObject item) {
                 double mult = 1;
@@ -71,18 +100,20 @@ namespace XRL.World.Parts
                 );
             }
 
-            public string Summary(string search = "") {
+            public string Summary(Options options, string search = "") {
                 int count = 0;
                 search = search.ToLower();
                 string message = String.Format("{0} ({1} {2}, {3}, {4})", Name + (MightRestock ? " (restocks)" : ""), Direction(), Location, Stratum(), FormatTime());
                 foreach (ItemMemory item in Items) {
                     if (search == "" || item.SearchName.Contains(search)) {
-                        count += 1;
-                        double mult = 1;
-                        if (!item.IsCurrency) {
-                            mult = 1/StandardMultiplier;
+                        if (options.Match(item, this)) {
+                            count += 1;
+                            double mult = 1;
+                            if (!item.IsCurrency) {
+                                mult = 1/StandardMultiplier;
+                            }
+                            message += String.Format("\n - {0} (${1} {2})", item.DisplayName, TradeUI.FormatPrice(item.Value, (float)mult), item.FormatWeight());
                         }
-                        message += String.Format("\n - {0} (${1} {2})", item.DisplayName, TradeUI.FormatPrice(item.Value, (float)mult), item.FormatWeight());
                     }
                 }
                 if (count == 0) {
@@ -262,9 +293,11 @@ namespace XRL.World.Parts
                         //Popup.Show(LastMerchant.Summary());
                         string message = "known merchants:\n";
                         foreach (MerchantInventory merch in AllMerchants.Values) {
-                            message += "\n" + merch.Summary();
+                            message += "\n" + merch.Summary(options);
                         }
-                        Popup.Show(message);
+                        //Popup.Show(message);
+
+                        ShowConfigScreen();
                     } else {
                         Popup.Show("You don't remember any merchants or their wares.");
                     }
@@ -273,24 +306,74 @@ namespace XRL.World.Parts
 			}
             if (E.ID == "CommandSearchMerchants")
             {
-				if (ParentObject.IsPlayer()) {
-                    if (_SeenAny) {
-                        string search = Popup.AskString("Search for what item?");
-
-                        string message = "merchants who are selling '" + search + "'";
-                        foreach (MerchantInventory merch in AllMerchants.Values) {
-                            string results = merch.Summary(search);
-                            if (results != "") {
-                                message += "\n" + results;
-                            }
-                        }
-                        Popup.Show(message);
-                    } else {
-                        Popup.Show("You don't remember any merchants or their wares.");
-                    }
-                }
+                RunItemSearch();
             }
 			return base.FireEvent(E);
 		}
+
+        public void ShowConfigScreen()
+        {
+            char hotkey = 'a';
+            int OPTION_COUNT = 1;
+            List<string> Options = new List<string>(OPTION_COUNT);
+            List<char> keymap = new List<char>(OPTION_COUNT);
+            List<string> cmds = new List<string>(OPTION_COUNT);
+
+            void AddOption(string text, string cmd) {
+                Options.Add(text);
+                cmds.Add(cmd);
+                keymap.Add(hotkey);
+                hotkey++;
+            };
+
+            AddOption($"change minimum cost (>= {options.MinSpend})", "min_cost");
+            AddOption($"change maximum cost ({options.FormatMaxSpend()})", "max_cost");
+            AddOption($"only search restocking merchants ({options.OnlyRestocking ? "YES" : "no"})", "toggle_only_restock");
+
+            int choice = Popup.ShowOptionList(
+                "Merchant Memory Config Options",
+                Options.ToArray(),
+                keymap.ToArray()
+            );
+            XRL.Messages.MessageQueue.AddPlayerMessage(cmds[choice]);
+
+            if (cmds[choice] == "min_cost") {
+                int? response = Popup.AskNumber("change minimum value");
+                if (response is int cost) {
+                    options.MinSpend = cost;
+                }
+            } else if (cmds[choice] == "max_cost") {
+                int? response = Popup.AskNumber("change maximum value (enter a negative value to erase)");
+                if (response is int cost) {
+                    options.MaxSpend = cost;
+                }
+            } else if (cmds[choice] == "toggle_only_restock") {
+                options.OnlyRestocking != options.OnlyRestocking;
+            }
+        }
+
+
+
+        private Options options = new Options();
+
+        public void RunItemSearch()
+        {
+            if (ParentObject.IsPlayer()) {
+                if (_SeenAny) {
+                    string search = Popup.AskString("Search for what item?");
+
+                    string message = "merchants who are selling '" + search + "'";
+                    foreach (MerchantInventory merch in AllMerchants.Values) {
+                        string results = merch.Summary(options, search);
+                        if (results != "") {
+                            message += "\n" + results;
+                        }
+                    }
+                    Popup.Show(message);
+                } else {
+                    Popup.Show("You don't remember any merchants or their wares.");
+                }
+            }
+        }
 	}
 }
