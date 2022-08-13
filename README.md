@@ -1,14 +1,14 @@
-A QoL mod for Caves of Qud
+# A QoL mod for Caves of Qud
 
-# Quick Summary
+## Quick Summary
 
 This mod keeps track of merchant inventories in Caves of Qud, letting you check what you've seen without having to manually keep notes or take screenshots. The recorded info does respect existing (vanilla) game mechanics, such as unidentified artifacts; the goal is a quality-of-life improvement, while leaving game balance the same.
 
-# Installing
+## Installing
 
 Download the code, [install it](https://wiki.cavesofqud.com/wiki/Modding:Installing_a_mod#Manual_Download), and load a new character or existing save file. Then you're good to go!
 
-# How it works
+## How it works
 
 Every time you ask to trade with someone, the contents of their inventory will be saved for later searching, based on what your character sees on the trade screen. For instance, if you talk to all of the Six Day Stilt merchants and ask to trade, you can then search for "grenade" to check which merchants had identified grenades (or grenade data disks) for sale, as well as where they're located and when you last talked to them.
 
@@ -20,12 +20,12 @@ Additional filtering, such as min or max water cost, is available via the "Confi
 
 Not yet tested with Snake Oiler (it hooks into the same game event, so remembered prices might be a little inaccurate), or Sifrah trading (which afaik changes the trade interaction, and I have no idea how that will interact).
 
-# Savegame compatibility (tldr: yes)
+## Savegame compatibility (tldr: yes)
 
 This mod DOES work on existing save games :). I'm also planning to maintain savegame compatibility between mod versions, so that you can upgrade from one version to future ones (which I'll probably be doing on my own saves, after all!).
 
 Note that if the newer version tracks more info than your existing version, you may need to re-interact with merchants to update their records with the new info.
 
-# Feedback & Contributions
+## Feedback & Contributions
 
 I'm happy to get feedback or contributions! Feel free to use the "[issues](https://github.com/HeatherSoron/QudMerchantMemory/issues)" tab here on Github for suggestions and bug reports, or ping me on the official Caves of Qud discord if you're there (I'm "Soron" on there).
