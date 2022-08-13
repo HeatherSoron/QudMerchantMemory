@@ -32,6 +32,7 @@ namespace XRL.World.Parts
             public int wY;
             public double StandardMultiplier;
             public long LastBrowsedAt; 
+            public bool MightRestock = false;
 
             public class ItemMemory {
                 public string DisplayName;
@@ -73,7 +74,7 @@ namespace XRL.World.Parts
             public string Summary(string search = "") {
                 int count = 0;
                 search = search.ToLower();
-                string message = String.Format("{0} ({1} {2}, {3}, {4})", Name, Direction(), Location, Stratum(), FormatTime());
+                string message = String.Format("{0} ({1} {2}, {3}, {4})", Name + (MightRestock ? " (restocks)" : ""), Direction(), Location, Stratum(), FormatTime());
                 foreach (ItemMemory item in Items) {
                     if (search == "" || item.SearchName.Contains(search)) {
                         count += 1;
@@ -189,6 +190,7 @@ namespace XRL.World.Parts
                 wY = Trader.CurrentZone.wY,
                 StandardMultiplier = EventShim_GetFor(E, E.Actor, Trader),
                 LastBrowsedAt = Calendar.TotalTimeTicks,
+                MightRestock = Trader.HasPart("GenericInventoryRestocker"),
             };
             LastMerchant = merch;
             _SeenAny = true;
