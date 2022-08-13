@@ -4,10 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using XRL.UI;
 using Newtonsoft.Json;
-
-
 using ConsoleLib.Console;
-
 
 namespace XRL.World.Parts
 {
@@ -27,12 +24,20 @@ namespace XRL.World.Parts
             public int MinSpend = 0;
             public int MaxSpend = -1;
             public bool OnlyRestocking = false;
+            public List<string> ItemCategories = new List<string>();
 
             public string FormatMaxSpend() {
                 if (MaxSpend < 0) {
                     return "none";
                 }
                 return $"<= {MaxSpend}";
+            }
+
+            public string FormatItemCategories() {
+                if (ItemCategories.Count == 0) {
+                    return "N/A";
+                }
+                return String.Join(", ", ItemCategories.ToArray());
             }
 
             public bool Match(ItemMemory item, MerchantInventory merch) {
@@ -45,6 +50,9 @@ namespace XRL.World.Parts
                 if (OnlyRestocking && !merch.MightRestock) {
                     return false;
                 }
+                if (ItemCategories.Count > 0 && !ItemCategories.Contains(item.Category)) {
+                    return false;
+                }
                 return true;
             }
         }
@@ -55,6 +63,7 @@ namespace XRL.World.Parts
             public int Weight;
             public double Value;
             public bool IsCurrency;
+            public string Category;
 
             public string FormatWeight() {
                 return "{{K|" + Weight + "#}}";
@@ -86,6 +95,7 @@ namespace XRL.World.Parts
                     Weight = item.WeightEach,
                     Value = TradeUI.ItemValueEach(item, true),
                     IsCurrency = item.IsCurrency,
+                    Category = item.GetInventoryCategory(),
                 });
             }
             
@@ -182,20 +192,28 @@ namespace XRL.World.Parts
         public override void SaveData(SerializationWriter Writer) {
             base.SaveData(Writer);
 
-            string version = "version_0.5.0";
+            string version = "version_0.6.0";
             Writer.Write(version);
 
             Writer.Write(JsonConvert.SerializeObject(AllMerchants, Formatting.Indented));
+            Writer.Write(JsonConvert.SerializeObject(options));
+            Writer.Write(JsonConvert.SerializeObject(altConfig));
         }
         public override void LoadData(SerializationReader Reader) {
             base.LoadData(Reader);
 
             string version = Reader.ReadString();
-            if (version == "version_0.5.0") {
+            if (version == "version_0.6.0") {
                 string json = Reader.ReadString();
 
                 AllMerchants = JsonConvert.DeserializeObject<Dictionary<string, MerchantInventory>>(json);
                 _SeenAny = (AllMerchants.Count > 0);
+
+                json = Reader.ReadString();
+                options = JsonConvert.DeserializeObject<Options>(json);
+
+                json = Reader.ReadString();
+                altConfig = JsonConvert.DeserializeObject<Dictionary<string, Options>>(json);
             }
         }
 
@@ -221,7 +239,7 @@ namespace XRL.World.Parts
                 wY = Trader.CurrentZone.wY,
                 StandardMultiplier = EventShim_GetFor(E, E.Actor, Trader),
                 LastBrowsedAt = Calendar.TotalTimeTicks,
-                MightRestock = Trader.HasPart("GenericInventoryRestocker"),
+                MightRestock = Trader.HasPart("GenericInventoryRestocker") || Trader.HasPart("Restocker"),
             };
             LastMerchant = merch;
             _SeenAny = true;
@@ -259,14 +277,15 @@ namespace XRL.World.Parts
 
 		public Guid RememberAbilityID = Guid.Empty;
         public Guid SearchMerchantsID = Guid.Empty;
+        public Guid DoConfigID = Guid.Empty;
 
 		public void InitAbilities()
 		{
-            if (RememberAbilityID == Guid.Empty) {
-                RememberAbilityID = AddMyActivatedAbility("Remember Merchants", "CommandRememberMerchants", "Memories", "You bring to mind the merchants and traders that you've seen in your travels.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false);
-            }
             if (SearchMerchantsID == Guid.Empty) {
                 SearchMerchantsID = AddMyActivatedAbility("Remember Items", "CommandSearchMerchants", "Memories", "You bring to mind specific items, sold by the merchants that you've seen in your travels.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false);
+            }
+            if (DoConfigID == Guid.Empty) {
+                DoConfigID = AddMyActivatedAbility("Configure Item Search", "CommandConfigureItemSearch", "Memories", "Adjust how item search works, including item filters.", "-", null, Toggleable: false, DefaultToggleState: false, ActiveToggle: false, IsAttack: false); 
             }
 		}
 
@@ -279,6 +298,7 @@ namespace XRL.World.Parts
 		{
 			Object.RegisterPartEvent(this, "CommandRememberMerchants");
 			Object.RegisterPartEvent(this, "CommandSearchMerchants");
+            Object.RegisterPartEvent(this, "CommandConfigureItemSearch");
 			base.Register(Object);
 		}
 
@@ -304,6 +324,11 @@ namespace XRL.World.Parts
 				}
                 return false;
 			}
+            if (E.ID == "CommandConfigureItemSearch")
+            {
+                ShowConfigScreen();
+                return false;
+            }
             if (E.ID == "CommandSearchMerchants")
             {
                 RunItemSearch();
@@ -314,7 +339,7 @@ namespace XRL.World.Parts
         public void ShowConfigScreen()
         {
             char hotkey = 'a';
-            int OPTION_COUNT = 1;
+            int OPTION_COUNT = 7;
             List<string> Options = new List<string>(OPTION_COUNT);
             List<char> keymap = new List<char>(OPTION_COUNT);
             List<string> cmds = new List<string>(OPTION_COUNT);
@@ -328,14 +353,18 @@ namespace XRL.World.Parts
 
             AddOption($"change minimum cost (>= {options.MinSpend})", "min_cost");
             AddOption($"change maximum cost ({options.FormatMaxSpend()})", "max_cost");
-            AddOption($"only search restocking merchants ({options.OnlyRestocking ? "YES" : "no"})", "toggle_only_restock");
+            AddOption("filter by item category" + $" ({options.FormatItemCategories()})", "update_item_cat");
+            AddOption($"only search restocking merchants ({(options.OnlyRestocking ? "YES" : "no")})", "toggle_only_restock");
+            AddOption("save current config", "save_config");
+            AddOption("load other config", "load_config");
+            AddOption("exit", "exit");
 
             int choice = Popup.ShowOptionList(
                 "Merchant Memory Config Options",
                 Options.ToArray(),
                 keymap.ToArray()
             );
-            XRL.Messages.MessageQueue.AddPlayerMessage(cmds[choice]);
+            //XRL.Messages.MessageQueue.AddPlayerMessage(cmds[choice]);
 
             if (cmds[choice] == "min_cost") {
                 int? response = Popup.AskNumber("change minimum value");
@@ -343,18 +372,71 @@ namespace XRL.World.Parts
                     options.MinSpend = cost;
                 }
             } else if (cmds[choice] == "max_cost") {
-                int? response = Popup.AskNumber("change maximum value (enter a negative value to erase)");
+                // AskNumber doesn't seem to support negatives well, so use 0 as our sentinal value instead
+                int? response = Popup.AskNumber("change maximum value (enter 0 to remove maximum)", 0, int.MinValue, int.MaxValue, "-0123456789");
                 if (response is int cost) {
+                    if (cost == 0) {
+                        cost = -1;
+                    }
                     options.MaxSpend = cost;
                 }
+            } else if (cmds[choice] == "update_item_cat") {
+                string commaSepList = Popup.AskString("What item categories are you looking for? (comma-separated, case sensitive)");
+                if (commaSepList != "") {
+                    options.ItemCategories = commaSepList.Split(',').ToList();
+                } else {
+                    options.ItemCategories = new List<string>();
+                }
             } else if (cmds[choice] == "toggle_only_restock") {
-                options.OnlyRestocking != options.OnlyRestocking;
+                options.OnlyRestocking = !options.OnlyRestocking;
+            } else if (cmds[choice] == "save_config") {
+                string name = Popup.AskString("what name do you want to save it as?");
+                altConfig[name] = CloneOptions(options);
+            } else if (cmds[choice] == "load_config") {
+                AskLoadOptions();
             }
+
+            if (cmds[choice] != "exit") {
+                ShowConfigScreen();
+            }
+        }
+
+        public void AskLoadOptions() {
+            char hotkey = 'a';
+            int OPTION_COUNT = altConfig.Count;
+            List<string> Options = new List<string>(OPTION_COUNT);
+            List<char> keymap = new List<char>(OPTION_COUNT);
+            List<string> cmds = new List<string>(OPTION_COUNT);
+
+            void AddOption(string text, string cmd) {
+                Options.Add(text);
+                cmds.Add(cmd);
+                keymap.Add(hotkey);
+                hotkey++;
+            };
+
+            foreach (string name in altConfig.Keys) {
+                AddOption(name, name);
+            }
+
+            int choice = Popup.ShowOptionList(
+                "Load Merchant Memory Config",
+                Options.ToArray(),
+                keymap.ToArray()
+            );
+
+            options = CloneOptions(altConfig[cmds[choice]]);
+        }
+
+        private Options CloneOptions(Options opt) {
+            string text = JsonConvert.SerializeObject(opt);
+            return JsonConvert.DeserializeObject<Options>(text);
         }
 
 
 
         private Options options = new Options();
+        private Dictionary<string, Options> altConfig = new Dictionary<string, Options>();
 
         public void RunItemSearch()
         {
